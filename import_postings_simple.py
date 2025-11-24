@@ -7,8 +7,9 @@ from datetime import datetime
 # =========================
 # CONFIGURACIÓN
 # =========================
-BASE_URL = "http://localhost:8000"
-CSV_PATH = r"H:\UNMSM\Cycle_X\PreProssionalPractice\postings.csv"
+BASE_URL = "http://localhost:8001"
+CSV_PATH = r"/media/ubuntu/TOSHIBA EXT/UNMSM/Cycle_X/PreProssionalPractice/postings.csv"
+# CSV_PATH = r"H:\UNMSM\Cycle_X\PreProssionalPractice\postings.csv"
 
 logging.basicConfig(
     level=logging.INFO,
