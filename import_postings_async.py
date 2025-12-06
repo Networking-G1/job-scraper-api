@@ -1,15 +1,15 @@
 import pandas as pd
-import httpx
 import asyncio
 import logging
 from datetime import datetime
 from tqdm import tqdm   # PROGRESS BAR
+from app.database import SessionLocal
+from app.models import JobPosting
 
 # =======================================================
 # CONFIG
 # =======================================================
-CSV_PATH = r"H:\UNMSM\Cycle_X\PreProssionalPractice\postings.csv"
-BASE_URL = "http://localhost:8000/jobs/"
+CSV_PATH = "postings.csv/postings.csv"
 BATCH_SIZE = 100  # PROCESAR SOLO 200 TAREAS A LA VEZ
 
 # =======================================================
@@ -95,46 +95,39 @@ def clean_row(row):
 
 
 # =======================================================
-# ASYNC INSERT FUNCTION
+# INSERT FUNCTION
 # =======================================================
 
-async def insert_job_async(client, payload):
+def insert_job(session, payload):
     if not payload["job_posting_url"]:
         logging.warning("Skipping empty URL row.")
         return None
 
     # Check duplicate
-    check_url = f"{BASE_URL}?job_posting_url={payload['job_posting_url']}"
-    resp = await client.get(check_url)
-
-    if resp.status_code == 200 and len(resp.json()) > 0:
+    existing = session.query(JobPosting).filter(JobPosting.job_posting_url == payload['job_posting_url']).first()
+    if existing:
         logging.info(f"Already exists: {payload['job_posting_url']}")
         return None
 
     # Insert
-    response = await client.post(BASE_URL, json=payload)
-
-    if response.status_code in [200, 201]:
-        job_id = response.json().get("id")
-        logging.info(f"Inserted {job_id} | {payload['title']}")
-        return job_id
-    else:
-        logging.error(f"INSERT ERROR: {payload['job_posting_url']} | {response.text}")
-        return None
+    job = JobPosting(**payload)
+    session.add(job)
+    session.commit()
+    logging.info(f"Inserted {job.id} | {payload['title']}")
+    return job.id
 
 
 # =======================================================
 # MAIN
 # =======================================================
 
-async def main():
+def main():
     print("📌 Loading CSV...")
     df = pd.read_csv(CSV_PATH)
     total = len(df)
     print(f"🔎 Rows: {total}")
 
-    async with httpx.AsyncClient(timeout=None) as client:
-
+    with SessionLocal() as session:
         batch_number = 0  # 👈 contador de batches
 
         for i in tqdm(range(0, total, BATCH_SIZE), desc="Processing batches"):
@@ -148,17 +141,13 @@ async def main():
 
             batch = df.iloc[i:i+BATCH_SIZE]
 
-            tasks = []
             for _, row in batch.iterrows():
                 payload = clean_row(row)
-                tasks.append(insert_job_async(client, payload))
-
-            await asyncio.gather(*tasks)
-
+                insert_job(session, payload)
 
     print("🎉 Import completed!")
     logging.info("=== Import finished successfully ===")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
